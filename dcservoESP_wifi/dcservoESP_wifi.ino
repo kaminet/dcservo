@@ -40,17 +40,17 @@
 // #define encoder0PinA  2 // PD2; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 // #define encoder0PinB  8  // PB0; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 
-#define LED           13  // onboard LED
+// #define LED           13  // onboard LED
 
 #define chartSize 500 // NO of samples for chart
 
 const int encoder0PinA = 13;
 const int encoder0PinB = 12;
 const int Step = 14;
-const int M1=16;
-const int M2=5;
-const int DIR=0;
-const int PWM_MOT=15;
+const int M1=16; //16
+const int M2=5; //5
+const int DIR=0; //0
+// const int PWM_MOT=15;
 
 
 
@@ -88,11 +88,11 @@ bool oldStep = false;
 bool dir = false;
 int skip = 0;
 
-void toggle() {
-  static int state = 0;
-  state = !state;
-  digitalWrite(BUILTIN_LED, state);
-}
+// void toggle() {
+//   static int state = 0;
+//   state = !state;
+//   digitalWrite(BUILTIN_LED, state);
+// }
 
 // void pwmOut(int out) {
 //   if (out < 0) {
@@ -113,7 +113,7 @@ void pwmOut(int out) {
   void pwmOut(int out) {
    if(out>0) { digitalWrite(M1,0); digitalWrite(M2,1); }
    else      { digitalWrite(M1,1); digitalWrite(M2,0); }
-   analogWrite(9,abs(out));
+  //  analogWrite(9,abs(out));
    //PWM = out;
   }
 
@@ -166,7 +166,7 @@ void motion() {
     else counting = false;
   }
   pwmOut(motor);
-  // analogWrite(LED, abs(output));
+  // analogWrite(, abs(output));
   if (abs(input - target1) < 15)
     onPosition = true;
   else
@@ -318,21 +318,23 @@ void eedump() {
 
 void setup() {
   pinMode(BUILTIN_LED, OUTPUT);
+  pinMode(M1, OUTPUT);
+  pinMode(M2, OUTPUT);
   pinMode(encoder0PinA, INPUT_PULLUP);
   pinMode(encoder0PinB, INPUT_PULLUP);
-  pinMode(3, INPUT_PULLUP); // Configure pin 3 as input for STEP
-  pinMode(A0, INPUT_PULLUP); // Configure pin A0 as input for DIR
+  pinMode(Step, INPUT_PULLUP); // Configure pin 3 as input for STEP
+  pinMode(DIR, INPUT_PULLUP); // Configure pin A0 as input for DIR
 
   analogWriteFreq(20000);  // set PWM to 20Khz
   analogWriteRange(255);   // set PWM to 255 levels (not sure if more is better)
   attachInterrupt(encoder0PinA, encoderInt, CHANGE);
   attachInterrupt(encoder0PinB, encoderInt, CHANGE);
   attachInterrupt(Step, countStep, RISING);
-  toggle();
+  // toggle();
 
   // WiFi is started inside library
   SPIFFS.begin(); // Not really needed, checked inside library and started if needed
-  ESPHTTPServer.begin(&SPIFFS);
+ ESPHTTPServer.begin(&SPIFFS);
   /* add setup code here */
 
   Serial.begin (115200);
@@ -348,7 +350,7 @@ void setup() {
   speed.SetOutputLimits(-255, 255);
 
 }
-
+// TODO: rewrite to process whole lines in case of human entering data char by char
 void process_line() {
   char cmd = Serial.read();
   if (cmd > 'Z') cmd -= 32;
@@ -367,14 +369,14 @@ void process_line() {
     case 'K': eedump(); break;
     case 'R': recoverPIDfromEEPROM() ; break;
     case 'S': for (int i = 0; i < p; i++) Serial.println(chartSamples[i]); break; // Send chart data
-    case 'Z': detachInterrupt(2); break; // from then on, ignore step pulses (good for tests)
+    case 'Z': detachInterrupt(Step); break; // from then on, ignore step pulses (good for tests)
     case 'F': feed = Serial.parseFloat(); break;
     case 'V': vkp = Serial.parseFloat(); speed.SetTunings(vkp, vki, vkd); break;
     case 'G': vki = Serial.parseFloat(); speed.SetTunings(vkp, vki, vkd); break;
     case 'Y': counting = true; for (int i = 0; i < chartSize; i++) chartSamples[i] = 0; p = 0; trapezoidal(Serial.parseInt()); break; // performs a trapezoidal move
     case '@': accel = Serial.parseFloat(); break;
   }
-  while (Serial.read() != 10); // dump extra characters till LF is seen (you can use CRLF or just LF)
+  // while (Serial.read() != 10); // dump extra characters till LF is seen (you can use CRLF or just LF)
 }
 
 void loop() {
@@ -384,5 +386,5 @@ void loop() {
   if (auto1) if (curTime % 3000 == 0) target1 = random(2000); // that was for self test with no input from main controller
   if (auto2) if (curTime % 1000 == 0) printPos();
   // DO NOT REMOVE. Attend OTA update from Arduino IDE
-  ESPHTTPServer.handle();
+ ESPHTTPServer.handle();
 }

@@ -4,3 +4,4 @@
 .gcc-flags.json
 lib\FSBrowserNG\
 !lib\FSBrowserNG\src\
+debug\
