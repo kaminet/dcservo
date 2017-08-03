@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<a href="admin.html"  class="btn btn--s">&lt;</a>&nbsp;&nbsp;<strong>Servo Positions Config</strong>
+	<hr>
+	<form action="" method="post">
+		<table border="0"  cellspacing="0" cellpadding="3" >
+			<tr>
+				<td align="right">Enable</td>
+				<td>
+				  <div id="enable">
+				    <input id="enableOn" type="button" style="width:180px" class="btn btn--m btn--blue" value="1" onclick="handleToggleButton(this)">
+				    <input id="enableOff" type="button" style="width:180px" class="btn btn--m btn--blue" value="0" onclick="handleToggleButton(this)">
+				  </div>
+<!--				  <label><input type="checkbox" id="enable" name="enable" onchange="this.value=this.checked; setVal(this);"></label>-->
+ <!--       <label><input type="checkbox" id="enable" name="enable" onchange="if(this.checked) this.value='1'; else this.value='0';setVal(this);"></label><br>-->
+<!--				<label><input type="checkbox" id="enable" name="enable" onchange='handleClick(this);'></label><br>-->
+<!--				<label><input type="checkbox" id="enable" name="enable" onclick="if(this.checked) this.value='checked'; else this.value='';setVal(this);"></label><br>
+				<label><input type="checkbox" id="enable" name="enable" onchange="setVal(this);"></label><br>-->
+			</tr>
+			<tr>
+				<td align="right">Down</td>
+				<td>
+				<label><input id="down" type="range" min="0" max="1023" step="1" oninput="setVal(this)"></label>
+			</tr>
+			<tr>
+				<td align="right">Center</td>
+				<td>
+				<label><input id="center" type="range" min="0" max="1023" step="1" oninput="setVal(this)"></label>
+			</tr>
+			<tr>
+				<td align="right">Up</td>
+				<td>
+				<label><input id="up" type="range" min="0" max="1023" step="1" oninput="setVal(this)"></label>
+			</tr>
+			<tr>
+				<td align="right">Dead Zone</td>
+				<td>
+				<label><input id="dead_zone" type="range" min="0" max="30" step="1" oninput="setVal(this)"></label>
+			</tr>
+			<tr>
+				<td align="right">Position</td>
+				<td>
+				<label><input id="position" type="range" min="0" max="1023" step="1" oninput="setVal(this)"></label>
+			</tr>
+			<tr>
+				<td align="left" colspan="2">
+				<hr></td>
+			</tr>
+			<tr>
+				<td colspan="2" align="center">
+				<input type="button" style="width:180px" class="btn btn--m btn--blue" value="DOWN" onclick="spot(down.value, dead_zone.value)"/>
+				<input type="button" style="width:180px" class="btn btn--m btn--blue" value="CENTER" onclick="spot(center.value, dead_zone.value)"/>
+				<input type="button" style="width:180px" class="btn btn--m btn--blue" value="UP" onclick="spot(up.value, dead_zone.value)"/></td>
+			</tr>
+			 <tr>
+				<td colspan="2" align="center">
+        <input id="load_defaults" type="button" style="width:180px" class="btn btn--m btn--blue" value="DEFAULTS" onclick="param(this)"/>
+				<input id="save_config" type="button" style="width:180px" class="btn btn--m btn--blue" value="SAVE" onclick="param(this)"/></td>
+			</tr>
+		</table>
+	</form>
+	<script>
+	function setVal(el) {
+		if(!el.lastVal) {
+			el.lastVal = el.value;
+		}
+		if(el.lastVal != el.value) {
+			console.log(el.value, el.id);
+			setValues('/arm/value?'+ el.id + '=' + el.value);
+			el.lastVal = el.value;
+		}
+	}
+	
+	function param(el) {
+		console.log(el.value, el.id);
+		setValues('/arm/value?'+ el.id + '=' + 1);
+	}
+		
+	function handleToggleButton(el) {
+	  var parent = document.getElementById(el.id).parentNode.id;
+		console.log("parent: %s", parent);
+	  var kids = document.getElementById(parent).children;
+	   for(var i = 0; i < kids.length; i++){
+       kids[i].className = "btn btn--m btn--blue";
+      // parent.value = i;
+  	}	  
+		if(el.value == "1") {
+		  //el.value = "0";
+		  el.className = "btn btn--m btn--green";
+		} else {
+		 // el.value = "1";
+		  el.className = "btn btn--m btn--red";
+		}
+		console.log(parent, el.id);
+		setValues('/arm/value?'+ parent + '=' + el.value);
+	}
+	
+	function spot(position, dead_zone) {
+		var uri = '/arm/value';
+		uri += '?position=' + position;
+		uri += '&dead_zone=' + dead_zone;
+		setValues(uri);
+	}
+
+	window.onload = function ()
+	{
+		load("style.css","css", function()
+		{
+			load("microajax.js","js", function()
+			{
+				setValues("/arm/value");
+			});
+		});
+	}
+
+	function load(e, t, n) {
+		if ("js" == t) {
+			var a = document.createElement("script");
+			a.src = e, a.type = "text/javascript",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		} else if ("css" == t) {
+			var a = document.createElement("link");
+			a.href = e, a.rel = "stylesheet", a.type = "text/css",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		}
+	}
+
+	</script>
