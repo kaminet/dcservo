@@ -23,6 +23,7 @@
 #include <EEPROM.h>
 #include <PID_v1.h>
 
+
 #include <ESP8266WiFi.h>
 #include "FS.h"
 #include <WiFiClient.h>
@@ -37,6 +38,7 @@
 #include <ArduinoJson.h>
 #include "FSWebServerLib.h"
 
+#include <pwm.c>
 // #define encoder0PinA  2 // PD2; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 // #define encoder0PinB  8  // PB0; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 
@@ -44,20 +46,52 @@
 
 #define chartSize 500 // NO of samples for chart
 
+// Do not use GPIO15 for PWM
 const int encoder0PinA = 13;
 const int encoder0PinB = 12;
 const int Step = 14;
-const int M1=16; //16
-const int M2=5; //5
+const int M1=2; //16
+const int M2=4; //5
 const int DIR=0; //0
 // const int PWM_MOT=15;
 
+/* Configure new_pwm */
+#define PWM_CHANNELS 2
+const uint32_t period = 5000; // * 200ns ^= 1 kHz
+
+// PWM setup
+uint32 io_info[PWM_CHANNELS][3] = {
+	// MUX, FUNC, PIN
+	{PERIPHS_IO_MUX_GPIO4_U,  FUNC_GPIO4, 4},
+	{PERIPHS_IO_MUX_GPIO5_U, FUNC_GPIO5 ,  5},
+  /*MUX_REGISTER
+GPIO0: PERIPHS_IO_MUX_GPIO0_U
+GPIO1: PERIPHS_IO_MUX_U0TXD_U
+GPIO2: PERIPHS_IO_MUX_GPIO2_U
+GPIO3: PERIPHS_IO_MUX_U0RXD_U
+GPIO4: PERIPHS_IO_MUX_GPIO4_U
+GPIO5: PERIPHS_IO_MUX_GPIO5_U
+GPIO6: PERIPHS_IO_MUX_SD_CLK_U
+GPIO7: PERIPHS_IO_MUX_SD_DATA0_U
+GPIO8: PERIPHS_IO_MUX_SD_DATA1_U
+GPIO9: PERIPHS_IO_MUX_SD_DATA2_U
+GPIO10: PERIPHS_IO_MUX_SD_DATA3_U
+GPIO11: PERIPHS_IO_MUX_SD_CMD_U
+GPIO12: PERIPHS_IO_MUX_MTDI_U
+GPIO13: PERIPHS_IO_MUX_MTCK_U
+GPIO14: PERIPHS_IO_MUX_MTMS_U
+GPIO15: PERIPHS_IO_MUX_MTDO_U*/
+};
+
+// initial duty: all off
+uint32 pwm_duty_init[PWM_CHANNELS] = {0, 0};
 
 
+/* Configure PID */
 int chartSamples[chartSize]; int p = 0; // Samples for draw runing
 //PID
 //double kp = 5, ki = 0.0, kd = 0.08;
-double kp = 10, ki = 1.23, kd = 0.05;
+double kp = 100, ki = 0.23, kd = 0.5;
 double input = 0, output = 0, setpoint = 0;
 PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
 bool onPosition = false;
@@ -94,29 +128,32 @@ int skip = 0;
 //   digitalWrite(BUILTIN_LED, state);
 // }
 
-// void pwmOut(int out) {
-//   if (out < 0) {
-//     analogWrite(M1, 0);
-//     analogWrite(M2, abs(out));
-//   }
-//   else {
-//     analogWrite(M2, 0);
-//     analogWrite(M1, abs(out));
-//   }
-// }
 /*
+// PWM_L | PWM_R
 void pwmOut(int out) {
    if(out<0) { analogWrite(M1,0); analogWrite(M2,abs(out)); }
    else { analogWrite(M2,0); analogWrite(M1,abs(out)); }
-  }
-  */
+ }
+*/
+// PWM | DIR
+ /*void pwmOut(int out) {
+    if(out<0) { digitalWrite(M1,0); analogWrite(M2,abs(out)); }
+    else { digitalWrite(M1,1); analogWrite(M2,abs(out)); }
+  }*/
+void pwmOut(int out) {
+  if(out<0) { digitalWrite(M1,0); pwm_set_duty(abs(out), 0); }
+  else { digitalWrite(M1,1); pwm_set_duty(abs(out), 0); }
+  pwm_start();           // commit
+ }
+
+/*
   void pwmOut(int out) {
    if(out>0) { digitalWrite(M1,0); digitalWrite(M2,1); }
    else      { digitalWrite(M1,1); digitalWrite(M2,0); }
   //  analogWrite(9,abs(out));
    //PWM = out;
   }
-
+*/
 
 
 
@@ -151,7 +188,7 @@ void motion() {
   vel =  encoder0Pos - input;
   input = encoder0Pos;
   setpoint = target1;
-  while (!myPID.Compute()); // wait till PID is actually computed
+  while (!myPID.Compuite()) yield(); // wait till PID is actually computed
   setspeed = output;
   //  pwmOut(output);
   /*  if (counting &&  (skip++ % 10) == 0 ) {
@@ -204,7 +241,7 @@ void trapezoidal(int destination) { // it will use acceleration and feed values 
     //vel =  encoder0Pos - input;
     input = encoder0Pos;
     setpoint = covered;
-    while (!myPID.Compute()); // espero a que termine el cálculo
+    while (!myPID.Compute()) yield(); // espero a que termine el cálculo
     setspeed = output;
     //speed.Compute();
     pwmOut(output );
@@ -220,6 +257,7 @@ void trapezoidal(int destination) { // it will use acceleration and feed values 
   target1 = covered;
 }
 
+/* INTERRUPTS */
 const int QEM [16] = {0, -1, 1, 2, 1, 0, 2, -1, -1, 2, 0, 1, 2, 1, -1, 0}; // Quadrature Encoder Matrix
 static unsigned char New, Old;
 
@@ -228,16 +266,27 @@ void encoderInt() { // handle pin change interrupt for D2  // encoder0PinA, YOU 
   //New = PIND & 3; //(PINB & 1 )+ ((PIND & 4) >> 1); //   Mauro Manco
   New = digitalRead(encoder0PinA)*2 + digitalRead(encoder0PinB);
   encoder0Pos+= QEM [Old * 4 + New];
+  // Must clear this bit in the interrupt register, ??
+  // it gets set even when interrupts are disabled
+  GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1 << encoder0PinA);
+  GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1 << encoder0PinB);
 }
 
-void countStep(){ if (digitalRead(DIR)== HIGH) target1--;else target1++;
+void countStep(){
+  if (digitalRead(DIR)== HIGH) target1--;else target1++;
+  // Must clear this bit in the interrupt register, ??
+  // it gets set even when interrupts are disabled
+  GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1 << Step);
 } // pin A0 represents direction == PF7 en Pro Micro
 
+/* Serial Communication */
 void printPos() {
   Serial.print(F("Position="));
   Serial.print(encoder0Pos);
   Serial.print(F(" PID_output="));
   Serial.print(output);
+  Serial.print(F(" PID_motor="));
+  Serial.print(motor);
   Serial.print(F(" Target="));
   Serial.print(setpoint);
   Serial.print(F(" LastCheck="));
@@ -269,6 +318,8 @@ void help() {
   Serial.println(F("@123.34 sets [trapezoidal] acceleration"));
   Serial.println(F("Z disables STEP input\n"));
 }
+
+/* Load save settings */
 
 void eeput(double value, int dir) { // Snow Leopard keeps me grounded to 1.0.6 Arduino, so I have to do this :-(
   char * addr = (char * ) &value;
@@ -316,6 +367,7 @@ void eedump() {
   } Serial.println();
 }
 
+
 void setup() {
   pinMode(BUILTIN_LED, OUTPUT);
   pinMode(M1, OUTPUT);
@@ -325,8 +377,14 @@ void setup() {
   pinMode(Step, INPUT_PULLUP); // Configure pin 3 as input for STEP
   pinMode(DIR, INPUT_PULLUP); // Configure pin A0 as input for DIR
 
-  analogWriteFreq(20000);  // set PWM to 20Khz
-  analogWriteRange(255);   // set PWM to 255 levels (not sure if more is better)
+/* PWM*/
+// Legacy
+/*  analogWriteFreq(20000);  // set PWM to 20Khz
+  analogWriteRange(255);   // set PWM to 255 levels (not sure if more is better)*/
+// new_pwm
+  pwm_init(period, pwm_duty_init, PWM_CHANNELS, io_info);
+  pwm_start();
+
   attachInterrupt(encoder0PinA, encoderInt, CHANGE);
   attachInterrupt(encoder0PinB, encoderInt, CHANGE);
   attachInterrupt(Step, countStep, RISING);
@@ -334,20 +392,21 @@ void setup() {
 
   // WiFi is started inside library
   SPIFFS.begin(); // Not really needed, checked inside library and started if needed
- ESPHTTPServer.begin(&SPIFFS);
+  ESPHTTPServer.begin(&SPIFFS);
   /* add setup code here */
 
   Serial.begin (115200);
   help();
   recoverPIDfromEEPROM();
+
   //Setup the pid
   myPID.SetMode(AUTOMATIC);
   myPID.SetSampleTime(1);
-  myPID.SetOutputLimits(-255, 255);
+  myPID.SetOutputLimits(-5000, 5000);
 
   speed.SetMode(AUTOMATIC);
   speed.SetSampleTime(1);
-  speed.SetOutputLimits(-255, 255);
+  speed.SetOutputLimits(-5000, 5000);
 
 }
 // TODO: rewrite to process whole lines in case of human entering data char by char
@@ -376,7 +435,7 @@ void process_line() {
     case 'Y': counting = true; for (int i = 0; i < chartSize; i++) chartSamples[i] = 0; p = 0; trapezoidal(Serial.parseInt()); break; // performs a trapezoidal move
     case '@': accel = Serial.parseFloat(); break;
   }
-  // while (Serial.read() != 10); // dump extra characters till LF is seen (you can use CRLF or just LF)
+  // while (Serial.read() != 10) {yield()}; // dump extra characters till LF is seen (you can use CRLF or just LF)
 }
 
 void loop() {
@@ -386,5 +445,5 @@ void loop() {
   if (auto1) if (curTime % 3000 == 0) target1 = random(2000); // that was for self test with no input from main controller
   if (auto2) if (curTime % 1000 == 0) printPos();
   // DO NOT REMOVE. Attend OTA update from Arduino IDE
- ESPHTTPServer.handle();
+ // ESPHTTPServer.handle();
 }
