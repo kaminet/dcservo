@@ -33,12 +33,12 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <ESP8266mDNS.h>
-#include <Ticker.h>
+// #include <Ticker.h>
 #include <ArduinoOTA.h>
 #include <ArduinoJson.h>
 #include "FSWebServerLib.h"
 
-#include <pwm.c>
+#include <pwm.c> // https://github.com/thierer/ESP8266_new_pwm/tree/fix_boundary_check
 // #define encoder0PinA  2 // PD2; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 // #define encoder0PinB  8  // PB0; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 
@@ -57,14 +57,15 @@ const int DIR=0; //0
 
 /* Configure new_pwm */
 #define PWM_CHANNELS 2
-const uint32_t period = 5000; // * 200ns ^= 1 kHz
+const uint32_t period = 50000; // * 200ns ^= 10 kHz
+#define PWM_PRESCALE 200
 
 // PWM setup
 uint32 io_info[PWM_CHANNELS][3] = {
 	// MUX, FUNC, PIN
 	{PERIPHS_IO_MUX_GPIO4_U,  FUNC_GPIO4, 4},
 	{PERIPHS_IO_MUX_GPIO5_U, FUNC_GPIO5 ,  5},
-  /*MUX_REGISTER
+  /*MUX_REGISTERS
 GPIO0: PERIPHS_IO_MUX_GPIO0_U
 GPIO1: PERIPHS_IO_MUX_U0TXD_U
 GPIO2: PERIPHS_IO_MUX_GPIO2_U
@@ -85,13 +86,13 @@ GPIO15: PERIPHS_IO_MUX_MTDO_U*/
 
 // initial duty: all off
 uint32 pwm_duty_init[PWM_CHANNELS] = {0, 0};
-
+double pwmOld;
 
 /* Configure PID */
 int chartSamples[chartSize]; int p = 0; // Samples for draw runing
 //PID
 //double kp = 5, ki = 0.0, kd = 0.08;
-double kp = 100, ki = 0.23, kd = 0.5;
+double kp = 5, ki = 1.23, kd = 0.02;
 double input = 0, output = 0, setpoint = 0;
 PID myPID(&input, &output, &setpoint, kp, ki, kd, DIRECT);
 bool onPosition = false;
@@ -141,10 +142,17 @@ void pwmOut(int out) {
     else { digitalWrite(M1,1); analogWrite(M2,abs(out)); }
   }*/
 void pwmOut(int out) {
-  if(out<0) { digitalWrite(M1,0); pwm_set_duty(abs(out), 0); }
-  else { digitalWrite(M1,1); pwm_set_duty(abs(out), 0); }
-  pwm_start();           // commit
- }
+  if (pwmOld != out) {
+    if(out<0) { digitalWrite(M1,0); pwm_set_duty(abs(out)*PWM_PRESCALE, 0); }
+    else { digitalWrite(M1,1); pwm_set_duty(abs(out)*PWM_PRESCALE, 0); }
+    pwm_start();           // commit
+    pwmOld = out;
+    if (auto2) {
+      Serial.print(F(" Out="));
+      Serial.println(abs(out)*PWM_PRESCALE);
+    }
+  }
+}
 
 /*
   void pwmOut(int out) {
@@ -188,7 +196,7 @@ void motion() {
   vel =  encoder0Pos - input;
   input = encoder0Pos;
   setpoint = target1;
-  while (!myPID.Compuite()) yield(); // wait till PID is actually computed
+  while (!myPID.Compute()) yield(); // wait till PID is actually computed
   setspeed = output;
   //  pwmOut(output);
   /*  if (counting &&  (skip++ % 10) == 0 ) {
@@ -402,11 +410,11 @@ void setup() {
   //Setup the pid
   myPID.SetMode(AUTOMATIC);
   myPID.SetSampleTime(1);
-  myPID.SetOutputLimits(-5000, 5000);
+  myPID.SetOutputLimits(-(double)period/PWM_PRESCALE, (double)period/PWM_PRESCALE);
 
   speed.SetMode(AUTOMATIC);
   speed.SetSampleTime(1);
-  speed.SetOutputLimits(-5000, 5000);
+  speed.SetOutputLimits(-(double)period/PWM_PRESCALE, (double)period/PWM_PRESCALE);
 
 }
 // TODO: rewrite to process whole lines in case of human entering data char by char
