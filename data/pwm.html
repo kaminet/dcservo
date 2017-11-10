@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<a href="/"  class="btn btn--s">&lt;</a>&nbsp;&nbsp;<strong>PWM Setup</strong>
+	<hr>
+	<form action="" method="get">
+		<table border="0"  cellspacing="0" cellpadding="3" >
+			<tr>
+				<td align="right">Period<br>*200ns</td>
+				<td>
+				  <label><input id="pwmPeriodSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('pwmPeriod').value=pwmPeriodSteps[this.value]"><br>
+				  <input type="number" min="100" max="1000000" step="1000" id="pwmPeriod" name="pwmPeriod" size="6" oninput="document.getElementById('frequency').value = Math.round( 1 / (this.value*200) * 1000000 * 100) / 100"></label>
+				  <input id="pwmPeriodSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pwm_values?'+ 'pwmPeriod' + '=' + document.getElementById('pwmPeriod').value)">
+			  </td>
+			</tr>
+  		<tr>
+				<td align="right">Prescale</td>
+				<td>
+				  <label><input id="pwmPrescaleSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('pwmPrescale').value=pwmPrescaleSteps[this.value]"><br>
+				  <input type="number" min="1" max="5000" step="100" id="pwmPrescale" name="pwmPrescale" size="6" oninput="document.getElementById('steps').value = document.getElementById('pwmPeriod').value / this.value"></label>
+				  <input id="pwmPrescaleSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pwm_values?'+ 'pwmPrescale' + '=' + document.getElementById('pwmPrescale').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td colspan="2" class="divider"><hr /></td>
+			</tr>
+  		<tr>
+				<td align="right">Frequency</td>
+				<td>
+				  <label><input type="number" min="0" max="5000" step="0.5" id="frequency" name="frequency" size="6" oninput="document.getElementById('pwmPeriod').value = 1 / this.value * 1000000 / 200"></label> kHz
+			  </td>
+			</tr>
+  		<tr>
+				<td align="right">PWM Steps</td>
+				<td>
+				  <label><input type="number" min="1" max="500" step="10" id="steps" name="steps" size="6" oninput="document.getElementById('pwmPrescale').value = document.getElementById('pwmPeriod').value / this.value"></label> 1/
+			  </td>
+			</tr>
+			<tr>
+		</table>
+	</form>
+	<script>
+	var pwmPeriodSteps = [1000,2000,5000,10000,20000,50000,75000,100000,200000,500000];
+	var pwmPrescaleSteps = [4,8,20,40,80,200,300,400,800,2000];
+
+	function setVal(el) {
+		if(!el.lastVal) {
+			el.lastVal = el.value;
+		}
+		if(el.lastVal != el.value) {
+			console.log(el.value, el.id);
+			setValues('/pwm_values?'+ el.id + '=' + el.value);
+			el.lastVal = el.value;
+		}
+	}
+
+	function param(el) {
+		console.log(el.value, el.id);
+		setValues('/pwm_values?'+ el.id + '=' + 1);
+	}
+
+	function handleToggleButton(el) {
+		if(el.value == "ON") {
+		  el.value = "OFF";
+		  el.className = "btn btn--m btn--green";
+		} else {
+		  el.value = "ON";
+		  el.className = "btn btn--m btn--red";
+		}
+		//console.log(el.value, el.id);
+		//setValues('/stepper_values?'+ parent + '=' + el.value);
+		setVal(el);
+	}
+
+	function spot(position, dead_zone) {
+		var uri = '/pwm_values';
+		uri += '?position=' + position;
+		uri += '&dead_zone=' + dead_zone;
+		setValues(uri);
+	}
+
+	window.onload = function ()
+	{
+		load("style.css","css", function()
+		{
+			load("microajax.js","js", function()
+			{
+				setValues("/pwm_values");
+			});
+		});
+	}
+
+	function load(e, t, n) {
+		if ("js" == t) {
+			var a = document.createElement("script");
+			a.src = e, a.type = "text/javascript",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		} else if ("css" == t) {
+			var a = document.createElement("link");
+			a.href = e, a.rel = "stylesheet", a.type = "text/css",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		}
+	}
+
+	</script>

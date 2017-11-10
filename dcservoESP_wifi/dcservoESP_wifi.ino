@@ -18,7 +18,6 @@
    Please note PID gains kp, ki, kd need to be tuned to each different setup.
 */
 
-
 #include <Arduino.h>
 #include <EEPROM.h>
 #include <PID_v1.h>
@@ -38,7 +37,7 @@
 #include <ArduinoJson.h>
 #include "FSWebServerLib.h"
 
-#include <pwm.c> // https://github.com/thierer/ESP8266_new_pwm/tree/fix_boundary_check
+#include "pwm.c" // https://github.com/thierer/ESP8266_new_pwm/tree/fix_boundary_check
 // #define encoder0PinA  2 // PD2; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 // #define encoder0PinB  8  // PB0; YOU NEED CHANGE IT IN INTERRUPT ROUTINES
 
@@ -50,15 +49,15 @@
 const int encoder0PinA = 13;
 const int encoder0PinB = 12;
 const int Step = 14;
-const int M1=2; //16
-const int M2=4; //5
+const int M1=2; // D4 H bridge DIR
+const int M2=4; // D2 H bridge PWM
 const int DIR=0; //0
 // const int PWM_MOT=15;
 
 /* Configure new_pwm */
 #define PWM_CHANNELS 2
-const uint32_t period = 50000; // * 200ns ^= 10 kHz
-#define PWM_PRESCALE 200
+uint32_t pwmPeriod = 50000; // 5000 * 200ns ^= 1 kHz
+uint32_t pwmPrescale = 200;
 
 // PWM setup
 uint32 io_info[PWM_CHANNELS][3] = {
@@ -143,13 +142,13 @@ void pwmOut(int out) {
   }*/
 void pwmOut(int out) {
   if (pwmOld != out) {
-    if(out<0) { digitalWrite(M1,0); pwm_set_duty(abs(out)*PWM_PRESCALE, 0); }
-    else { digitalWrite(M1,1); pwm_set_duty(abs(out)*PWM_PRESCALE, 0); }
+    if(out<0) { digitalWrite(M1,0); pwm_set_duty(abs(out), 0); }
+    else { digitalWrite(M1,1); pwm_set_duty(abs(out), 0); }
     pwm_start();           // commit
     pwmOld = out;
     if (auto2) {
       Serial.print(F(" Out="));
-      Serial.println(abs(out)*PWM_PRESCALE);
+      Serial.println(abs(out));
     }
   }
 }
@@ -162,8 +161,6 @@ void pwmOut(int out) {
    //PWM = out;
   }
 */
-
-
 
 /* Motor safe code */
 void motorProtect() {
@@ -196,7 +193,7 @@ void motion() {
   vel =  encoder0Pos - input;
   input = encoder0Pos;
   setpoint = target1;
-  while (!myPID.Compute()) yield(); // wait till PID is actually computed
+  while (!myPID.Compute()); // wait till PID is actually computed
   setspeed = output;
   //  pwmOut(output);
   /*  if (counting &&  (skip++ % 10) == 0 ) {
@@ -210,7 +207,7 @@ void motion() {
     if (p < chartSize - 1) p++;
     else counting = false;
   }
-  pwmOut(motor);
+  pwmOut(motor*pwmPrescale);
   // analogWrite(, abs(output));
   if (abs(input - target1) < 15)
     onPosition = true;
@@ -252,10 +249,10 @@ void trapezoidal(int destination) { // it will use acceleration and feed values 
     while (!myPID.Compute()) yield(); // espero a que termine el cálculo
     setspeed = output;
     //speed.Compute();
-    pwmOut(output );
+    pwmOut( output );
     //digitalWrite(0,1-digitalRead(0));; just for time tracing purposes
     // record data for S command
-    if (counting  ) { // Collect samples for chart
+    if ( counting  ) { // Collect samples for chart
       chartSamples[p] = encoder0Pos;
       if (p < chartSize - 1) p++;
       else counting = false;
@@ -287,48 +284,7 @@ void countStep(){
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1 << Step);
 } // pin A0 represents direction == PF7 en Pro Micro
 
-/* Serial Communication */
-void printPos() {
-  Serial.print(F("Position="));
-  Serial.print(encoder0Pos);
-  Serial.print(F(" PID_output="));
-  Serial.print(output);
-  Serial.print(F(" PID_motor="));
-  Serial.print(motor);
-  Serial.print(F(" Target="));
-  Serial.print(setpoint);
-  Serial.print(F(" LastCheck="));
-  Serial.print(lastSafeCheck);
-  Serial.print(F(" LastEnc="));
-  Serial.println(lastEncPos);
-
-}
-
-void help() {
-  Serial.println(F("\nPID DC motor controller and stepper interface emulator"));
-  Serial.println(F("by misan"));
-  Serial.println(F("Available serial commands: (lines end with CRLF or LF)"));
-  Serial.println(F("P123.34 sets proportional term to 123.34"));
-  Serial.println(F("I123.34 sets integral term to 123.34"));
-  Serial.println(F("D123.34 sets derivative term to 123.34"));
-  Serial.println(F("? prints out current encoder, output and setpoint values"));
-  Serial.println(F("X123 sets the target destination for the motor to 123 encoder pulses"));
-  Serial.println(F("T will start a sequence of random destinations (between 0 and 2000) every 3 seconds. T again will disable that"));
-  Serial.println(F("Q will print out the current values of P, I and D parameters"));
-  Serial.println(F("W will store current values of P, I and D parameters into EEPROM"));
-  Serial.println(F("H will print this help message again"));
-  Serial.println(F("A will toggle on/off showing regulator status every second"));
-  Serial.println(F("M will toggle on/off decreasing motor power for protection when running at 100% for some time"));
-  Serial.println(F("F sets desired motion speed"));
-  Serial.println(F("V sets speed proportional gain"));
-  Serial.println(F("G sets speed integral gain"));
-  Serial.println(F("Y123.34 it is like X but using trapezoidal motion"));
-  Serial.println(F("@123.34 sets [trapezoidal] acceleration"));
-  Serial.println(F("Z disables STEP input\n"));
-}
-
 /* Load save settings */
-
 void eeput(double value, int dir) { // Snow Leopard keeps me grounded to 1.0.6 Arduino, so I have to do this :-(
   char * addr = (char * ) &value;
   for (int i = dir; i < dir + 4; i++)  EEPROM.write(i, addr[i - dir]);
@@ -375,48 +331,46 @@ void eedump() {
   } Serial.println();
 }
 
-
-void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);
-  pinMode(M1, OUTPUT);
-  pinMode(M2, OUTPUT);
-  pinMode(encoder0PinA, INPUT_PULLUP);
-  pinMode(encoder0PinB, INPUT_PULLUP);
-  pinMode(Step, INPUT_PULLUP); // Configure pin 3 as input for STEP
-  pinMode(DIR, INPUT_PULLUP); // Configure pin A0 as input for DIR
-
-/* PWM*/
-// Legacy
-/*  analogWriteFreq(20000);  // set PWM to 20Khz
-  analogWriteRange(255);   // set PWM to 255 levels (not sure if more is better)*/
-// new_pwm
-  pwm_init(period, pwm_duty_init, PWM_CHANNELS, io_info);
-  pwm_start();
-
-  attachInterrupt(encoder0PinA, encoderInt, CHANGE);
-  attachInterrupt(encoder0PinB, encoderInt, CHANGE);
-  attachInterrupt(Step, countStep, RISING);
-  // toggle();
-
-  // WiFi is started inside library
-  SPIFFS.begin(); // Not really needed, checked inside library and started if needed
-  ESPHTTPServer.begin(&SPIFFS);
-  /* add setup code here */
-
-  Serial.begin (115200);
-  help();
-  recoverPIDfromEEPROM();
-
-  //Setup the pid
-  myPID.SetMode(AUTOMATIC);
-  myPID.SetSampleTime(1);
-  myPID.SetOutputLimits(-(double)period/PWM_PRESCALE, (double)period/PWM_PRESCALE);
-
-  speed.SetMode(AUTOMATIC);
-  speed.SetSampleTime(1);
-  speed.SetOutputLimits(-(double)period/PWM_PRESCALE, (double)period/PWM_PRESCALE);
+/* Serial Communication */
+void printPos() {
+  Serial.print(F("Position="));
+  Serial.print(encoder0Pos);
+  Serial.print(F(" PID_output="));
+  Serial.print(output);
+  Serial.print(F(" PID_motor="));
+  Serial.print(motor);
+  Serial.print(F(" Target="));
+  Serial.print(setpoint);
+  Serial.print(F(" LastCheck="));
+  Serial.print(lastSafeCheck);
+  Serial.print(F(" LastEnc="));
+  Serial.println(lastEncPos);
 
 }
+
+void help() {
+  Serial.println(F("\nPID DC motor controller and stepper interface emulator"));
+  Serial.println(F("by misan"));
+  Serial.println(F("Available serial commands: (lines end with CRLF or LF)"));
+  Serial.println(F("P123.34 sets proportional term to 123.34"));
+  Serial.println(F("I123.34 sets integral term to 123.34"));
+  Serial.println(F("D123.34 sets derivative term to 123.34"));
+  Serial.println(F("? prints out current encoder, output and setpoint values"));
+  Serial.println(F("X123 sets the target destination for the motor to 123 encoder pulses"));
+  Serial.println(F("T will start a sequence of random destinations (between 0 and 2000) every 3 seconds. T again will disable that"));
+  Serial.println(F("Q will print out the current values of P, I and D parameters"));
+  Serial.println(F("W will store current values of P, I and D parameters into EEPROM"));
+  Serial.println(F("H will print this help message again"));
+  Serial.println(F("A will toggle on/off showing regulator status every second"));
+  Serial.println(F("M will toggle on/off decreasing motor power for protection when running at 100% for some time"));
+  Serial.println(F("F sets desired motion speed"));
+  Serial.println(F("V sets speed proportional gain"));
+  Serial.println(F("G sets speed integral gain"));
+  Serial.println(F("Y123.34 it is like X but using trapezoidal motion"));
+  Serial.println(F("@123.34 sets [trapezoidal] acceleration"));
+  Serial.println(F("Z disables STEP input\n"));
+}
+
 // TODO: rewrite to process whole lines in case of human entering data char by char
 void process_line() {
   char cmd = Serial.read();
@@ -444,6 +398,164 @@ void process_line() {
     case '@': accel = Serial.parseFloat(); break;
   }
   // while (Serial.read() != 10) {yield()}; // dump extra characters till LF is seen (you can use CRLF or just LF)
+}
+
+void setup() {
+  pinMode(BUILTIN_LED, OUTPUT);
+  pinMode(M1, OUTPUT);
+  pinMode(M2, OUTPUT);
+  pinMode(encoder0PinA, INPUT_PULLUP);
+  pinMode(encoder0PinB, INPUT_PULLUP);
+  pinMode(Step, INPUT_PULLUP); // Configure pin 3 as input for STEP
+  pinMode(DIR, INPUT_PULLUP); // Configure pin A0 as input for DIR
+
+/* PWM*/
+// Legacy
+/*  analogWriteFreq(20000);  // set PWM to 20Khz
+  analogWriteRange(255);   // set PWM to 255 levels (not sure if more is better)*/
+// new_pwm
+  pwm_init(pwmPeriod, pwm_duty_init, PWM_CHANNELS, io_info);
+  pwm_start();
+
+  attachInterrupt(encoder0PinA, encoderInt, CHANGE);
+  attachInterrupt(encoder0PinB, encoderInt, CHANGE);
+  attachInterrupt(Step, countStep, RISING);
+  // toggle();
+
+  // WiFi is started inside library
+  SPIFFS.begin(); // Not really needed, checked inside library and started if needed
+  ESPHTTPServer.begin(&SPIFFS);
+
+  // prepare web handlers
+auto handler_pid_values = ESPHTTPServer.on("/pid_values", HTTP_GET, [](AsyncWebServerRequest *request) {
+  for (uint8_t i = 0; i < request->args(); i++) {
+    DEBUGLOG("Arg %d: %s\r\n", i, request->arg(i).c_str());
+		Serial.print(request->argName(i));
+		Serial.print(" : ");
+		Serial.println(ESPHTTPServer.urldecode(request->arg(i)));
+    if (request->argName(i) == "enable") {
+		}
+		if (request->argName(i) == "kp") {
+			kp = request->arg(i).toFloat();
+			myPID.SetTunings(kp, ki, kd);
+		}
+		if (request->argName(i) == "ki") {
+			ki = request->arg(i).toFloat();
+			myPID.SetTunings(kp, ki, kd);
+		}
+		if (request->argName(i) == "kd") {
+			kd = request->arg(i).toFloat();
+			myPID.SetTunings(kp, ki, kd);
+		}
+		if (request->argName(i) == "vkp") {
+			vkp = request->arg(i).toFloat();
+			speed.SetTunings(vkp, vki, vkd);
+		}
+		if (request->argName(i) == "vki") {
+			vki = request->arg(i).toFloat();
+			speed.SetTunings(vkp, vki, vkd);
+		}
+		if (request->argName(i) == "vkd") {
+			vkd = request->arg(i).toFloat();
+			speed.SetTunings(vkp, vki, vkd);
+		}
+	}
+	String values = "";
+	values = "kp|" + (String)kp + "|input\n";
+	values += "ki|" + String(ki,4) + "|input\n";
+	values += "kd|" + String(kd,5) + "|input\n";
+	values += "vkp|" + (String)vkp + "|input\n";
+	values += "vki|" + String(vki,5) + "|input\n";
+	values += "vkd|" + String(vkd,4) + "|input\n";
+	request->send(200, "text/plain", values);
+});
+auto handler_stats_values = ESPHTTPServer.on("/motion_values", HTTP_GET, [](AsyncWebServerRequest *request) {
+  for (uint8_t i = 0; i < request->args(); i++) {
+    DEBUGLOG("Arg %d: %s\r\n", i, request->arg(i).c_str());
+		Serial.print(request->argName(i));
+		Serial.print(" : ");
+		Serial.println(ESPHTTPServer.urldecode(request->arg(i)));
+		if (request->argName(i) == "goto") {
+			for (int i = 0; i < chartSize; i++) chartSamples[i] = 0;
+			p = 0; counting = true;
+			target1 = request->arg(i).toInt();
+		}
+		if (request->argName(i) == "move") {
+			target1 += request->arg(i).toInt();
+			for (int i = 0; i < chartSize; i++) chartSamples[i] = 0;
+			p = 0; counting = true;
+		}
+		if (request->argName(i) == "gotoT") {
+			counting = true;
+			for (int i = 0; i < chartSize; i++) chartSamples[i] = 0;
+			p = 0;
+			trapezoidal(request->arg(i).toInt());
+		}
+		if (request->argName(i) == "moveT") {
+			counting = true;
+			for (int i = 0; i < chartSize; i++) chartSamples[i] = 0;
+			p = 0;
+			trapezoidal(target1 + request->arg(i).toInt());
+		}
+		if (request->argName(i) == "feed") {
+			feed = request->arg(i).toFloat();
+		}
+		if (request->argName(i) == "accel") {
+			accel = request->arg(i).toFloat();
+		}
+	}
+	String values = "";
+	values = "encoder0Pos|" + (String)encoder0Pos + "|input\n";
+	values += "target1|" + (String)target1 + "|input\n";
+  values += "setpoint|" + (String)setpoint + "|input\n";
+	values += "output|" + (String)output + "|input\n";
+	values += "motor|" + (String)motor + "|input\n";
+	values += "feed|" + (String)feed + "|input\n";
+	values += "accel|" + (String)accel + "|input\n";
+	values += "lastSafeCheck|" + (String)lastSafeCheck + "|input\n";
+	values += "lastEncPos|" + (String)lastEncPos + "|input\n";
+	request->send(200, "text/plain", values);
+});
+auto handler_pwm_values = ESPHTTPServer.on("/pwm_values", HTTP_GET, [](AsyncWebServerRequest *request) {
+  for (uint8_t i = 0; i < request->args(); i++) {
+    DEBUGLOG("Arg %d: %s\r\n", i, request->arg(i).c_str());
+		Serial.print(request->argName(i));
+		Serial.print(" : ");
+		Serial.println(ESPHTTPServer.urldecode(request->arg(i)));
+		if (request->argName(i) == "pwmPeriod") {
+			pwmPeriod = request->arg(i).toInt();
+			pwm_init(pwmPeriod, pwm_duty_init, PWM_CHANNELS, io_info);
+			pwm_start();
+			myPID.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+			speed.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+		}
+		if (request->argName(i) == "pwmPrescale") {
+			pwmPrescale = request->arg(i).toInt();
+			myPID.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+			speed.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+		}
+	}
+	String values = "";
+	values = "pwmPeriod|" + (String)pwmPeriod + "|input\n";
+	values += "pwmPrescale|" + (String)pwmPrescale + "|input\n";
+	request->send(200, "text/plain", values);
+});
+
+  /* add setup code here */
+
+  Serial.begin (115200);
+  help();
+  recoverPIDfromEEPROM();
+
+  //Setup the pid
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetSampleTime(1);
+  myPID.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+
+  speed.SetMode(AUTOMATIC);
+  speed.SetSampleTime(1);
+  speed.SetOutputLimits(-(double)pwmPeriod/pwmPrescale, (double)pwmPeriod/pwmPrescale);
+
 }
 
 void loop() {

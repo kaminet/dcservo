@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<a href="/"  class="btn btn--s">&lt;</a>&nbsp;&nbsp;<strong>Drive motor</strong>
+	<hr>
+	<form action="" method="get">
+		<table border="0"  cellspacing="0" cellpadding="3" >
+			<tr>
+				<td align="center"><label>Refresch</label>
+				  <input type="number" id="refresh-rate"/>
+				  <input id="autoRefresh" type="button" style="width:50px" class="btn btn--s btn--red" value="OFF" onclick="handleToggleButton(this)">
+			</td>
+			</tr>
+			<tr>
+			  <td>
+  				<table border="0"  cellspacing="0" cellpadding="1" width="100%">
+  					<tr>
+  						<td align="right">Encoder</td>
+  						<td align="left"><input type="number" id="encoder0Pos"/></td>
+  						<td> <input id="get" type="button" style="width:60px" class="btn btn--s btn--ble" value="Get" onclick="setValues('/motion_values')"></td>
+  					</tr>
+  					<tr>
+  						<td align="right">Setpoint</td>
+  						<td align="left"><input type="number" id="setpoint"/></td>
+  					</tr>
+  					<tr>
+  						<td align="right">Target</td>
+  						<td align="left"><input type="number" id="target1"/></td>
+  					</tr>
+  					<tr>
+  						<td align="right">Output</td>
+  						<td align="left"><input type="number" id="output"/></td>
+  					</tr>
+  					<tr>
+  						<td align="right">Motor</td>
+  						<td align="left"><input type="number" id="motor"/></td>
+  					</tr>
+  				</table>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2" class="divider"><hr /></td>
+			</tr>
+			<tr>
+			  <td>
+  				<table border="0"  cellspacing="0" cellpadding="1" width="100%">
+  					<tr>
+  						<td align="right">Feed</td>
+  						<td align="left"><input type="number" min="0" max="100000" step="100" id="feed" size="6"/></td>
+  						<td>
+				      <input id="setFeed" type="button" style="width:50px" class="btn btn--s btn--blue" value="set" onclick="setValues('/motion_values?'+ 'feed' + '=' + document.getElementById('feed').value)">
+  					  </td>
+  					</tr>
+  					<tr>
+  						<td align="right">Acceleration</td>
+  						<td align="left"><input type="number" min="0" max="100000" step="100" id="accel" size="6"/></td>
+  						<td>
+  						<input id="setAccel" type="button" style="width:50px" class="btn btn--s btn--blue" value="set" onclick="setValues('/motion_values?'+ 'accel' + '=' + document.getElementById('accel').value)">
+  						</td>
+  					</tr>
+  				</table>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="2" class="divider"><hr /></td>
+			</tr>
+			<tr>
+				<td align="center">Move</td>
+			</tr>
+			<tr>
+				<td align="center">
+				  <label>Position<input type="number" min="0" max="100000" step="100" id="goto" name="goto" size="6"></label>
+				  <input id="setGoto" type="button" style="width:50px" class="btn btn--s btn--blue" value="set" onclick="setValues('/motion_values?'+ 'goto' + '=' + document.getElementById('goto').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td align="center">
+				  <label><input id="moveSlider" style="width:250px" type="range" min="0" value="1" max="9" step="1" oninput="document.getElementById('move').value=moveSteps[this.value]"></label><br>
+				  <input id="setMoveL" type="button" style="width:50px" class="btn btn--s btn--blue" value="<-" onclick="setValues('/motion_values?'+ 'move' + '=' + -document.getElementById('move').value)">
+				  <input type="number" min="0" max="10000" step="10" id="move" name="move" size="6">
+				  <input id="setMoveR" type="button" style="width:50px" class="btn btn--s btn--blue" value="->" onclick="setValues('/motion_values?'+ 'move' + '=' + document.getElementById('move').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td colspan="2" class="divider"><hr /></td>
+			</tr>
+			<tr>
+				<td align="center">Trapezoidal move</td>
+			</tr>
+			<tr>
+				<td align="center">
+				  <label>Position<input type="number" min="0" max="100000" step="100" id="gotoT" name="gotoT" size="6"></label>
+				  <input id="setGotoT" type="button" style="width:50px" class="btn btn--s btn--blue" value="set" onclick="setValues('/motion_values?'+ 'gotoT' + '=' + document.getElementById('gotoT').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td align="center">
+				  <label><input id="moveTSlider" style="width:250px" type="range" min="0" value="1" max="9" step="1" oninput="document.getElementById('moveT').value=moveSteps[this.value]"></label><br>
+				  <input id="setMoveTL" type="button" style="width:50px" class="btn btn--s btn--blue" value="<-" onclick="setValues('/motion_values?'+ 'moveT' + '=' + -document.getElementById('moveT').value)">
+				  <input type="number" min="0" max="10000" step="10" id="moveT" name="move" size="6">
+				  <input id="setMoveTR" type="button" style="width:50px" class="btn btn--s btn--blue" value="->" onclick="setValues('/motion_values?'+ 'moveT' + '=' + document.getElementById('moveT').value)">
+			  </td>
+			</tr>
+		</table>
+	</form>
+	<script>
+	var moveSteps = [100,200,500,1000,2000,5000,10000,20000,50000,100000];
+	function setVal(el) {
+		if(!el.lastVal) {
+			el.lastVal = el.value;
+		}
+		if(el.lastVal != el.value) {
+			console.log(el.value, el.id);
+			setValues('/motion_values?'+ el.id + '=' + el.value);
+			el.lastVal = el.value;
+		}
+	}
+
+	function param(el) {
+		console.log(el.value, el.id);
+		setValues('/motion_values?'+ el.id + '=' + 1);
+	}
+
+	function handleToggleButton(el) {
+		if(el.value == "ON") {
+		  el.value = "OFF";
+		  el.className = "btn btn--m btn--green";
+		} else {
+		  el.value = "ON";
+		  el.className = "btn btn--m btn--red";
+		}
+		//console.log(el.value, el.id);
+		//setValues('/motion_values?'+ parent + '=' + el.value);
+		setVal(el);
+	}
+
+	function spot(position, dead_zone) {
+		var uri = '/motion_values';
+		uri += '?position=' + position;
+		uri += '&dead_zone=' + dead_zone;
+		setValues(uri);
+	}
+
+	window.onload = function ()
+	{
+		load("style.css","css", function()
+		{
+			load("microajax.js","js", function()
+			{
+				setValues("/motion_values");
+			});
+		});
+	}
+
+	function load(e, t, n) {
+		if ("js" == t) {
+			var a = document.createElement("script");
+			a.src = e, a.type = "text/javascript",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		} else if ("css" == t) {
+			var a = document.createElement("link");
+			a.href = e, a.rel = "stylesheet", a.type = "text/css",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		}
+	}
+
+	</script>

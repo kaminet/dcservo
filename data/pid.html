@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<a href="/"  class="btn btn--s">&lt;</a>&nbsp;&nbsp;<strong>PID Setup</strong>
+	<hr>
+	<form action="" method="get">
+		<table border="0"  cellspacing="0" cellpadding="3" >
+			<tr>
+				<td align="right">kp</td>
+				<td>
+				  <label><input id="kpSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('kp').value=kpSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="kp" name="kp" size="6"></label>
+				  <input id="kpSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'kp' + '=' + document.getElementById('kp').value)">
+			  </td>
+			</tr>
+  		<tr>
+				<td align="right">ki</td>
+				<td>
+				  <label><input id="kiSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('ki').value=kiSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="ki" name="ki" size="6"></label>
+				  <input id="kiSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'ki' + '=' + document.getElementById('ki').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td align="right">kd</td>
+				<td>
+				  <label><input id="kdSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('kd').value=kiSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="kd" name="kd" size="6"></label>
+				  <input id="kdSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'kd' + '=' + document.getElementById('kd').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td colspan="2" class="divider"><hr /></td>
+			</tr>
+			<tr>
+				<td align="right">vkp</td>
+				<td>
+				  <label><input id="vkpSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('vkp').value=kpSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="vkp" name="vkp" size="6"></label>
+				  <input id="vkpSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'vkp' + '=' + document.getElementById('vkp').value)">
+			  </td>
+			</tr>
+  		<tr>
+				<td align="right">vki</td>
+				<td>
+				  <label><input id="vkiSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('vki').value=kiSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="vki" name="vki" size="6"></label>
+				  <input id="vkiSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'vki' + '=' + document.getElementById('vki').value)">
+			  </td>
+			</tr>
+			<tr>
+				<td align="right">vkd</td>
+				<td>
+				  <label><input id="vkdSlider" style="width:250px" type="range" min="0" value="0" max="9" step="1" oninput="document.getElementById('vkd').value=kdSteps[this.value]"><br>
+				  <input type="number" min="0" max="100" step="0.01" id="vkd" name="vkd" size="6"></label>
+				  <input id="vkdSet" type="button" style="width:150px" class="btn btn--s btn--blue" value="set" onclick="setValues('/pid_values?'+ 'vkd' + '=' + document.getElementById('vkd').value)">
+			  </td>
+			</tr>
+		</table>
+	</form>
+	<script>
+	var kpSteps = [1,2,5,10,15,20,25,50,75,100];
+	var kiSteps = [0.1,0.2,0.5,0.75,1,1.2,1.25,1.50,1.75,2];
+	var kdSteps = [0.01,0.02,0.05,0.075,0.1,0.2,0.5,0.75,1,2];
+	function setVal(el) {
+		if(!el.lastVal) {
+			el.lastVal = el.value;
+		}
+		if(el.lastVal != el.value) {
+			console.log(el.value, el.id);
+			setValues('/pid_values?'+ el.id + '=' + el.value);
+			el.lastVal = el.value;
+		}
+	}
+
+	function param(el) {
+		console.log(el.value, el.id);
+		setValues('/pid_values?'+ el.id + '=' + 1);
+	}
+
+	function handleToggleButton(el) {
+		if(el.value == "ON") {
+		  el.value = "OFF";
+		  el.className = "btn btn--m btn--green";
+		} else {
+		  el.value = "ON";
+		  el.className = "btn btn--m btn--red";
+		}
+		//console.log(el.value, el.id);
+		//setValues('/stepper_values?'+ parent + '=' + el.value);
+		setVal(el);
+	}
+
+	function spot(position, dead_zone) {
+		var uri = '/pid_values';
+		uri += '?position=' + position;
+		uri += '&dead_zone=' + dead_zone;
+		setValues(uri);
+	}
+
+	window.onload = function ()
+	{
+		load("style.css","css", function()
+		{
+			load("microajax.js","js", function()
+			{
+				setValues("/pid_values");
+			});
+		});
+	}
+
+	function load(e, t, n) {
+		if ("js" == t) {
+			var a = document.createElement("script");
+			a.src = e, a.type = "text/javascript",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		} else if ("css" == t) {
+			var a = document.createElement("link");
+			a.href = e, a.rel = "stylesheet", a.type = "text/css",
+			a.async = !1,
+			a.onload = function () {
+				n()
+			},
+			document.getElementsByTagName("head")[0].appendChild(a)
+		}
+	}
+
+	</script>
